@@ -30,13 +30,4 @@ interface IStakeToken {
     // Terminate
     function terminate() external returns (bool);
 
-    /// @notice A descriptive name of this Tangible Token
-    function name() external view returns (string memory);
-
-    /// @notice An abbreviated name expressing the share
-    function symbol() external view returns (string memory);
-
-    /// @notice A distinct Uniform Resource Identifier (URI)
-    function tokenURI() external view returns (string memory);
-
 }

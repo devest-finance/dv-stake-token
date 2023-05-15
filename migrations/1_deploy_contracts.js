@@ -21,10 +21,10 @@ module.exports = function(deployer) {
                 }
             )
     } else {
-      deployer.deploy(DvStakePoolFactory)
-          .then(() => DvStakePoolFactory.deployed())
+      deployer.deploy(DvStakeTokenFactory)
+          .then(() => DvStakeTokenFactory.deployed())
           .then(async _instance => {
-              await _instance.setFee(10000000);
+              //await _instance.setFee(10000000);
           });
   }
 };

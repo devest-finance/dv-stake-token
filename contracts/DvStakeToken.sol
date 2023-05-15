@@ -70,11 +70,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, Dv
     bool internal initialized = false;
 
     // Last price which was accepted in order book per unit
-    //uint256 public price = 0;
     uint256 public value = 0;
-
-    // Shares contribution to the tangible
-    //uint256 public tangibleTax = 0;
 
     // Offers
     struct Order {
@@ -100,10 +96,10 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, Dv
     uint256 internal totalDisbursed;    // Total amount disbursed (not available anymore)
 
     // metadata
-    string public name;
-    string public symbol;
-    uint8 public decimal;
-    string _tokenURI;
+    string private _name;
+    string private _symbol;
+    uint8 private _decimals;
+    uint256 private _totalSupply;
 
     // ---- assets
 
@@ -116,10 +112,14 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, Dv
     Asset[] public assets;
 
     // Set owner and DI OriToken
-    constructor(address _tokenAddress, string memory _name, string memory _symbol, address _factory, address _owner)
+    constructor(address _tokenAddress, string memory name, string memory symbol, address _factory, address _owner)
     VestingToken(_tokenAddress) DvTax(_owner) DvRoyalty(_factory) {
-        symbol = string(abi.encodePacked("% ", _symbol));
-        name = _name;
+        _symbol = string(abi.encodePacked("% ", symbol));
+        _name = name;
+
+        shareholders.push(_owner);
+        shareholdersIndex[_owner] = 0;
+        shareholdersLevel[_owner] = 0;
     }
 
     // ----------------------------------------------------------------------------------------------------------
@@ -190,25 +190,21 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, Dv
     /**
      *  Initialize TST as tangible
      */
-    function initialize(uint256 amount, uint tax, uint8 _decimal) public virtual returns (bool){
+    function initialize(uint256 amount, uint tax, uint8 decimal) public virtual returns (bool){
         require(!initialized, 'E3');
         require(owner() == _msgSender(), 'E4');
-        require(tax >= 0 && tax <= 100, 'E5');
+        require(tax >= 0 && tax <= 1000, 'E5');
+        require(amount >= (10 ** decimal), 'E8');
+        require(decimal >= 0 && decimal <= 10, 'Max 16 decimals');
 
-        _decimal += 2;
-        uint256 totalShares = 100;
-        require(_decimal <= 4, 'E7');
-        require(amount >= totalShares, 'E8');
-
-        //tangibleTax = tax;
-        setTax(tax);
+        // set attributes
+        _decimals = decimal += 2;
         value = amount;
-        decimal = _decimal;
+        setTax(tax);
 
-        shareholders.push(_msgSender());
-        shareholdersIndex[_msgSender()] = 0;
-        shareholdersLevel[_msgSender()] = 0;
-        shares[_msgSender()] = totalShares;
+        // assign to publisher all shares
+        shares[_msgSender()] = (10 ** _decimals);
+        _totalSupply = (10 ** _decimals);
 
         // start bidding
         initialized = true;
@@ -239,7 +235,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, Dv
     *  amount: amount
     */
     function buy(uint256 _price, uint256 amount) public payable virtual override nonReentrant _isActive{
-        require(amount > 0 && amount <= 100, 'E9');
+        require(amount > 0 && amount <= (10 ** _decimals), 'E9');
         require(_price > 0, 'E10');
         require(orders[_msgSender()].amount == 0, 'E11');
 
@@ -264,7 +260,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, Dv
      *  Sell order
      */
     function sell(uint256 _price, uint256 amount) public payable override nonReentrant _isActive {
-        require(amount > 0 && amount <= 100, 'E12');
+        require(amount > 0 && amount <= (10 ** _decimals), 'E12');
         require(_price > 0, 'E13');
         require(shares[_msgSender()]  > 0, 'E14');
         require(orders[_msgSender()].amount == 0, 'E15');
@@ -279,7 +275,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, Dv
     /**
      *  Accept order
      */
-    function accept(address orderOwner, uint256 amount) external override payable _isActive takeRoyalty returns (uint256) {
+    function accept(address orderOwner, uint256 amount) external override payable nonReentrant _isActive takeRoyalty returns (uint256) {
         require(amount > 0, "E16");
         require(orders[orderOwner].amount >= amount, "E17");
         require(_msgSender() != orderOwner, "E18");
@@ -351,7 +347,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, Dv
     }
 
     // Pay usage charges
-    function pay(uint256 amount) public payable override _isActive takeRoyalty {
+    function pay(uint256 amount) public payable override _isActive takeRoyalty nonReentrant {
         require(initialized, 'E21');
         require(!terminated, 'E22');
         require(amount > 0, 'E23');
@@ -436,7 +432,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, Dv
         require(shareholdersLevel[_msgSender()]<disburseLevels.length, "Nothing to disburse");
 
         // calculate and transfer claiming amount
-        uint256 amount = (shares[_msgSender()] * disburseLevels[shareholdersLevel[_msgSender()]] / 100);
+        uint256 amount = (shares[_msgSender()] * disburseLevels[shareholdersLevel[_msgSender()]] / (10 ** _decimals));
         __transfer(_msgSender(), amount);
 
         // increase shareholders disburse level
@@ -452,7 +448,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, Dv
 
         for(uint256 i=0;i<assets.length;i++){
             IERC20 _token = IERC20(assets[i].token);
-            uint256 amount = ((shares[_msgSender()] * assets[i].amount) / 100);
+            uint256 amount = ((shares[_msgSender()] * assets[i].amount) / (10 ** _decimals));
             _token.transfer(_msgSender(), amount);
         }
 
@@ -502,11 +498,46 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, Dv
         return shareholders;
     }
 
-
-    /// @notice A distinct Uniform Resource Identifier (URI)
-    function tokenURI() external override view returns (string memory){
-        return _tokenURI;
+    /**
+    * @dev Returns the name of the token.
+     */
+    function name() public view returns (string memory) {
+        return _name;
     }
+
+    /**
+     * @dev Returns the symbol of the token, usually a shorter version of the
+     * name.
+     */
+    function symbol() public view returns (string memory) {
+        return _symbol;
+    }
+
+
+
+    /**
+     * @dev See {IERC20-totalSupply}.
+     */
+    function totalSupply() public view returns (uint256) {
+        return _totalSupply;
+    }
+
+    /**
+     * @dev Returns the number of decimals used to get its user representation.
+     * For example, if `decimals` equals `2`, a balance of `505` tokens should
+     * be displayed to a user as `5,05` (`505 / 10 ** 2`).
+     *
+     * Tokens usually opt for a value of 18, imitating the relationship between
+     * Ether and Wei.
+     *
+     * NOTE: This information is only used for _display_ purposes: it in
+     * no way affects any of the arithmetic of the contract, including
+     * {IERC20-balanceOf} and {IERC20-transfer}.
+     */
+    function decimals() public view returns (uint8) {
+        return _decimals;
+    }
+
 
     // Function to receive Ether only allowed when contract Native Token
     receive() external payable {}

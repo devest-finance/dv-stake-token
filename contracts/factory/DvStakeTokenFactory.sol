@@ -3,8 +3,8 @@ pragma solidity ^0.8.12;
 
 import "@openzeppelin/contracts/utils/Context.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "./IDvFactory.sol";
 import "../DvStakeToken.sol";
+import "../extensions/IDvFactory.sol";
 
 contract DvStakeTokenFactory is IDvFactory, Ownable {
 
@@ -43,7 +43,7 @@ contract DvStakeTokenFactory is IDvFactory, Ownable {
     }
 
     /**
-      * @dev Attach a token to this factory
+      * @dev de-tach a token from this factory
      */
     function detach(address payable _tokenAddress) external payable onlyOwner {
         DvStakeToken token = DvStakeToken(_tokenAddress);
@@ -57,7 +57,8 @@ contract DvStakeTokenFactory is IDvFactory, Ownable {
     {
         // take royalty
         require(msg.value >= _issueRoyalty, "Please provide enough royalty");
-        payable(_royaltyRecipient).transfer(_issueRoyalty);
+        if (_issueRoyalty > 0)
+            payable(_royaltyRecipient).transfer(_issueRoyalty);
 
         // issue
         DvStakeToken token = new DvStakeToken(_tokenAddress, name, symbol, address(this), _msgSender());

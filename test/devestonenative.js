@@ -389,7 +389,7 @@ const send = async (fn, properties, sender, value) => {
         delta: delta.toNumber()
     }
 }
-*/
+
 const getBalance = async (account) => {
     return web3.utils.toBN(await web3.eth.getBalance(account));
 }
@@ -403,4 +403,4 @@ const createBid = async (percent, price, address) => {
 
     await devestOne.bid(price, percent, { from: address, value: escrow });
 }
-
+*/

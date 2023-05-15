@@ -2,7 +2,8 @@
 pragma solidity ^0.8.12;
 
 import "@openzeppelin/contracts/utils/Context.sol";
-import "../factory/IDvFactory.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "./IDvFactory.sol";
 
 /**
  * @dev Contract module which provides revenue (in terms of royalty - transaction fees) model for a beneficiary

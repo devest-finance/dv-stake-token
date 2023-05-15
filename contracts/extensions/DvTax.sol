@@ -38,6 +38,7 @@ contract DvTax is Context {
      * @dev set the native fee, only owner
      */
     function setTax(uint256 __tax) public onlyOwner {
+        require(__tax >= 0 && __tax <= 1000, 'E5');
         _tax = __tax;
     }
 
