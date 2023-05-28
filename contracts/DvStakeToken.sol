@@ -112,10 +112,10 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, Dv
     Asset[] public assets;
 
     // Set owner and DI OriToken
-    constructor(address _tokenAddress, string memory name, string memory symbol, address _factory, address _owner)
+    constructor(address _tokenAddress, string memory __name, string memory __symbol, address _factory, address _owner)
     VestingToken(_tokenAddress) DvTax(_owner) DvRoyalty(_factory) {
-        _symbol = string(abi.encodePacked("% ", symbol));
-        _name = name;
+        _symbol = string(abi.encodePacked("% ", __symbol));
+        _name = __name;
 
         shareholders.push(_owner);
         shareholdersIndex[_owner] = 0;
@@ -512,8 +512,6 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, Dv
     function symbol() public view returns (string memory) {
         return _symbol;
     }
-
-
 
     /**
      * @dev See {IERC20-totalSupply}.
