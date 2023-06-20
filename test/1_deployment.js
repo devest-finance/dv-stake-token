@@ -11,9 +11,9 @@ contract('Testing Deployments', (accounts) => {
 
     it('Verify root (DeVest) DAO was deployed', async () => {
         const dvStakeTokenFactory = await DvStakeTokenFactory.deployed();
-        const devestDAOAddress = await dvStakeTokenFactory.getRoyalty.call();
+        const devestDAOAddress = await dvStakeTokenFactory.getRecipient.call();
 
-        const devestDAO = await DvStakeToken.at(devestDAOAddress[1]);
+        const devestDAO = await DvStakeToken.at(devestDAOAddress);
         const symbol = await devestDAO.symbol.call();
 
         assert.equal(symbol, "% DeVest DAO", "Failed to issue DeVest DAO Contract");
@@ -50,8 +50,8 @@ contract('Testing Deployments', (accounts) => {
         const erc20Token = await ERC20.deployed();
 
         // devest shares
-        const devestDAOAddress = await stakeTokenFactory.getRoyalty.call();
-        const DeVestDAO = await DvStakeToken.at(devestDAOAddress[1]);
+        const devestDAOAddress = await stakeTokenFactory.getRecipient.call();
+        const DeVestDAO = await DvStakeToken.at(devestDAOAddress);
 
         // issue new product
         const exampleOneContract = await stakeTokenFactory.issue(erc20Token.address, "Example", "EXP", { from: accounts[0], value: 100000000 });

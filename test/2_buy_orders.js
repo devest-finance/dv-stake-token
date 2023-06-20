@@ -18,8 +18,8 @@ contract('Bid Orders', (accounts) => {
         stakeTokenFactory = await DvStakeTokenFactory.deployed();
 
         // fetch devest
-        const devestDAOAddress = await stakeTokenFactory.getRoyalty.call();
-        modelOneDeVestDAO = await DvStakeToken.at(devestDAOAddress[1]);
+        const devestDAOAddress = await stakeTokenFactory.getRecipient.call();
+        modelOneDeVestDAO = await DvStakeToken.at(devestDAOAddress);
 
         // setup accounts
         await AccountHelper.setupAccountFunds(accounts, erc20Token, 40000000000);

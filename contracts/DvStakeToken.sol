@@ -2,12 +2,10 @@
 pragma solidity ^0.8.12;
 
 import "./IStakeToken.sol";
-import "./extensions/DvRoyalty.sol";
 import "./extensions/VestingToken.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "./extensions/DvTax.sol";
-
+import "./extensions/DeVest.sol";
 
 /** errors
 E1 : Only owner can initialize tangibles
@@ -41,7 +39,7 @@ E26 : Only DeVest can update Fees
 
 // DeVest Investment Model One
 // Bid & Offer
-contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, DvTax, DvRoyalty {
+contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, DeVest {
 
     // ---------------------------- EVENTS ------------------------------------
 
@@ -113,7 +111,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, Dv
 
     // Set owner and DI OriToken
     constructor(address _tokenAddress, string memory __name, string memory __symbol, address _factory, address _owner)
-    VestingToken(_tokenAddress) DvTax(_owner) DvRoyalty(_factory) {
+    VestingToken(_tokenAddress) DeVest(_owner, _factory) {
         _symbol = string(abi.encodePacked("% ", __symbol));
         _name = __name;
 
@@ -151,7 +149,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, Dv
 
         // in case of bid deduct escrow
         if (orders[orderOwner].bid == true){
-            uint256 escrowDeduct = totalPrice + ((totalPrice * getTax()) / 1000);
+            uint256 escrowDeduct = totalPrice + ((totalPrice * getRoyalty()) / 1000);
             orders[orderOwner].escrow -= escrowDeduct;
             escrow -= escrowDeduct; // deduct from total escrow
         }
@@ -200,7 +198,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, Dv
         // set attributes
         _decimals = decimal += 2;
         value = amount;
-        setTax(tax);
+        setRoyalty(tax);
 
         // assign to publisher all shares
         shares[_msgSender()] = (10 ** _decimals);
@@ -219,7 +217,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, Dv
     * Swap shares between owners,
     * Check for same level of disburse !!
     */
-    function transfer(address recipient, uint256 amount) external payable takeRoyalty {
+    function transfer(address recipient, uint256 amount) external payable takeFee {
         if (shares[_msgSender()] != amount){
             if (shares[recipient] > 0){
                 require(shareholdersLevel[_msgSender()] == shareholdersLevel[recipient], "Recipients or sender has pending disbursements!");
@@ -240,7 +238,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, Dv
         require(orders[_msgSender()].amount == 0, 'E11');
 
         // add tax to escrow
-        uint256 _escrow = (_price * amount) + (_price * amount * getTax()) / 1000;
+        uint256 _escrow = (_price * amount) + (_price * amount * getRoyalty()) / 1000;
 
         // check if enough escrow allowed
         __allowance(_msgSender(), _escrow);
@@ -275,7 +273,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, Dv
     /**
      *  Accept order
      */
-    function accept(address orderOwner, uint256 amount) external override payable nonReentrant _isActive takeRoyalty returns (uint256) {
+    function accept(address orderOwner, uint256 amount) external override payable nonReentrant _isActive takeFee{
         require(amount > 0, "E16");
         require(orders[orderOwner].amount >= amount, "E17");
         require(_msgSender() != orderOwner, "E18");
@@ -290,7 +288,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, Dv
 
         // calculate taxes
         uint256 cost = order.price * amount;
-        uint256 tax = (cost * getTax()) / 1000;
+        uint256 tax = (cost * getRoyalty()) / 1000;
         uint256 totalCost = cost + tax;
 
         // accepting on bid order
@@ -327,8 +325,6 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, Dv
 
         // TODO cover different event when accepting bid/ask
         emit swapped(_msgSender(), orderOwner, amount, totalCost);
-
-        return cost;
     }
 
     // Cancel order and return escrow
@@ -347,7 +343,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, Dv
     }
 
     // Pay usage charges
-    function pay(uint256 amount) public payable override _isActive takeRoyalty nonReentrant {
+    function pay(uint256 amount) public payable override _isActive takeFee nonReentrant {
         require(initialized, 'E21');
         require(!terminated, 'E22');
         require(amount > 0, 'E23');
@@ -357,7 +353,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, Dv
         __transferFrom(_msgSender(), address(this), amount);
 
         // pay tangible tax
-        uint256 tangible = ((getTax() * amount) / 1000);
+        uint256 tangible = ((getRoyalty() * amount) / 1000);
         __transfer(owner(), tangible);
 
         emit payment(_msgSender(), amount);

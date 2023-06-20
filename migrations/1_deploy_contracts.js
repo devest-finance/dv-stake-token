@@ -16,8 +16,9 @@ module.exports = function(deployer) {
                     const devestDAO = await DvStakeToken.at(devestDAOImp.logs[0].args[1]);
                     await devestDAO.initialize(10000000, 10, 0, { from: "0xECF5A576A949aEE5915Afb60E0e62D09825Cd61B" });
 
-                    await _instance.setRoyalty(10000000, 10000000);
-                    await _instance.setRecipient(devestDAOImp.logs[0].args[1]);
+                    // set fee on factory and also attach devest-dao as recipient
+                    await _instance.setFee(10000000, 10000000);
+                    await _instance.setRecipient(devestDAO.address);
                 }
             )
     } else {

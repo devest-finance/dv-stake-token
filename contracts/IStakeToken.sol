@@ -13,7 +13,7 @@ interface IStakeToken {
     function sell(uint256 price, uint256 amount) payable external;
 
     // Accept bid and sell shares
-    function accept(address bidder, uint256 amount) external payable returns (uint256);
+    function accept(address bidder, uint256 amount) external payable;
 
     // Transfer shares
     function transfer(address recipient, uint256 amount) external payable;
