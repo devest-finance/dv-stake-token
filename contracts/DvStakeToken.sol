@@ -166,9 +166,10 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     /**
      *  Initialize TST as tangible
      */
-    function initialize(uint tax, uint8 decimal) public virtual{
+    function initialize(uint tax, uint8 decimal) public onlyOwner virtual{
         require(!trading, 'E3');
-        require(owner() == _msgSender(), 'E4');
+        require(!presale, 'E3');
+        require(!terminated, 'E2');
         require(tax >= 0 && tax <= 1000, 'E5');
         require(decimal >= 0 && decimal <= 10, 'Max 16 decimals');
 
@@ -189,9 +190,9 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
       * the owner can sell a certain amount of shares to a certain price and after all shares are sold
       * the contract will be initialized.
       */
-     function initializePresale(uint tax, uint8 decimal, uint256 price) public virtual{
+     function initializePresale(uint tax, uint8 decimal, uint256 price) public onlyOwner virtual{
          require(!trading, 'E3');
-         require(owner() == _msgSender(), 'E4');
+         require(!terminated, 'E2');
          require(tax >= 0 && tax <= 1000, 'E5');
          require(decimal >= 0 && decimal <= 10, 'Max 16 decimals');
 
