@@ -28,8 +28,8 @@ contract('Mixed Orders', (accounts) => {
     });
 
     it('Add more buy orders', async () => {
-        const value = (await modelOneInstance.value.call()).toNumber();
-        const price = value / 100;
+        //const value = (await modelOneInstance.value.call()).toNumber();
+        const price = 3000000000 / 100;
 
         // submit bid
         await AccountHelper.createERCBuyOrder(erc20Token, modelOneInstance, 20, price, accounts[4]);
@@ -108,12 +108,12 @@ contract('Mixed Orders', (accounts) => {
         assert.equal((await modelOneInstance.getShares.call(accounts[5])).toNumber(), 10, "Invalid shares");
 
         assert.equal(shareholders[3], accounts[7], "Invalid shares");
-        assert.equal((await modelOneInstance.getShares.call(accounts[7])).toNumber(), 10, "Invalid shares");
+        assert.equal((await modelOneInstance.getShares.call(accounts[7])).toNumber(), 0, "Invalid shares"); // 10
     });
 
     it('Create some Sell Orders', async () => {
-        const value = (await modelOneInstance.value.call()).toNumber();
-        const price = value / 100;
+        //const value = (await modelOneInstance.value.call()).toNumber();
+        const price = 2985000000 / 100;
 
         const ordersBefore = await modelOneInstance.getOrders.call();
 

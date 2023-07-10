@@ -29,8 +29,8 @@ contract('Cancel Orders', (accounts) => {
     });
 
     it('Create some buy orders', async () => {
-        const value = (await modelOneInstance.value.call()).toNumber();
-        const price = value / 100;
+        //const value = (await modelOneInstance.value.call()).toNumber();
+        const price = 3000000000 / 100;
 
         // submit bid
         await AccountHelper.createERCBuyOrder(erc20Token, modelOneInstance, 20, price, accounts[4]);

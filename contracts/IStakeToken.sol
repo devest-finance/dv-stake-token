@@ -19,7 +19,7 @@ interface IStakeToken {
     function transfer(address recipient, uint256 amount) external payable;
 
     // Cancel all orders from this address
-    function cancel() external returns (bool);
+    function cancel() external;
 
     // Pay charges or costs
     function pay(uint256 amount) payable external;

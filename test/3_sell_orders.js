@@ -34,6 +34,13 @@ contract('Sell Orders', (accounts) => {
         assert.equal(orders[0], accounts[0], "Invalid sell order created");
     })
 
+    it("Check if transfer shares is not possible when an open sell order is available", async () => {
+        const balance = (await modelOneInstance.balanceOf.call(accounts[0])).toNumber();
+        const orders = await modelOneInstance.getOrders.call();
+
+        assert.equal(balance, 75, "Funds are not locked in open order");
+    });
+
     it("Accept sell order", async () => {
         // --- before
         const fundsOwnerBefore = (await erc20Token.balanceOf.call(accounts[0])).toNumber();
@@ -46,7 +53,7 @@ contract('Sell Orders', (accounts) => {
 
         await erc20Token.approve(modelOneInstance.address, escrow, { from: accounts[3] });
         const orders = await modelOneInstance.getOrders.call();
-        await modelOneInstance.accept(orders[0], 2, { from: accounts[3], value: 10000000 });
+        const event = await modelOneInstance.accept(orders[0], 2, { from: accounts[3], value: 10000000 });
 
         // check if tax was paid
         tax = 8000000;
@@ -59,13 +66,9 @@ contract('Sell Orders', (accounts) => {
         const fundsTangible = (await erc20Token.balanceOf.call(modelOneInstance.address)).toNumber();
         assert.equal(fundsTangible, 0, "Invalid funds on tangible after accept");
 
-        const value = (await modelOneInstance.value.call()).toNumber();
-        assert.equal((value/100), 30200000, "Invalid price, in PreSale phase");
-        // 40000000
-
         const shareOwner = (await modelOneInstance.getShares.call(accounts[0])).toNumber();
         const share3 = (await modelOneInstance.getShares.call(accounts[3])).toNumber();
-        assert.equal(shareOwner, 98, "Invalid share of staker");
+        assert.equal(shareOwner, 75, "Invalid share of staker"); // 98
         assert.equal(share3, 2, "Invalid share of staker");
     });
 

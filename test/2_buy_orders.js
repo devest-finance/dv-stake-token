@@ -54,7 +54,7 @@ contract('Bid Orders', (accounts) => {
 
         // fetch orders
         const orders = await modelOneInstance.getOrders.call();
-        await modelOneInstance.accept(orders[0], 50, { from: accounts[0], value: 10000000 });
+        const event = await modelOneInstance.accept(orders[0], 50, { from: accounts[0], value: 10000000 });
 
         // check if tax was paid
         const tax = 150000000;
@@ -67,8 +67,7 @@ contract('Bid Orders', (accounts) => {
         const fundsTangible = (await erc20Token.balanceOf.call(modelOneInstance.address)).toNumber();
         assert.equal(fundsTangible, 0, "Invalid funds on tangible after accept");
 
-        const value = (await modelOneInstance.value.call()).toNumber();
-        assert.equal((value/100), 30000000, "Invalid price, in PreSale phase");
+        assert.equal(event.logs["0"].args.price.toNumber(), 30000000, "Invalid price, in PreSale phase");
 
         const share = (await modelOneInstance.getShares.call(accounts[2])).toNumber();
         assert.equal(share, 50, "Invalid share of staker");

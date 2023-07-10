@@ -31,10 +31,24 @@ class Helper {
         const _name = await modelOneInstance.name.call();
         assert(_name, "Example", "Invalid name on TST");
 
-        await modelOneInstance.initialize(value, tax, decimal, { from: sender });
+        await modelOneInstance.initialize(tax, decimal, { from: sender });
 
-        const _value = (await modelOneInstance.value.call()).toNumber();
-        assert.equal(_value, value, "Invalid price on initialized tangible");
+        return modelOneInstance;
+    }
+
+    static async createTangiblePresale(factory, tokenAddress, name, short, value, tax, decimal, price, sender){
+        const exampleOneContract = await factory.issue(tokenAddress, name, short, { value: 100000000 });
+
+        const modelOneInstance = await DvStakeToken.at(exampleOneContract.logs[0].args[1]);
+        const symbol = await modelOneInstance.symbol.call();
+
+        assert.equal(symbol, "% EXP", "Failed to issue Example Contract");
+
+        // check if variables set
+        const _name = await modelOneInstance.name.call();
+        assert(_name, "Example", "Invalid name on TST");
+
+        await modelOneInstance.initializePresale(tax, decimal, price, { from: sender });
 
         return modelOneInstance;
     }

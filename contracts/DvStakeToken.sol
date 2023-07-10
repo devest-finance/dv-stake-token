@@ -44,31 +44,23 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     // ---------------------------- EVENTS ------------------------------------
 
     // When an shareholder exchanged his shares
-    event swapped(address indexed from, address indexed to, uint256 share, uint256 totalCost);
-
-    // When new buy order was submitted and awaits acceptance
-    event ordered(address indexed from, uint256 price, uint256 amount, bool bid);
+    event Trade(address indexed from, address indexed to, uint256 quantity, uint256 price);
 
     // When payment was received
-    event payment(address indexed from, uint256 amount);
-
-    // When dividends been disbursed
-    event disbursed(uint256 amount);
+    event Payment(address indexed from, uint256 amount);
 
     // ---------------------------- ERRORS --------------------------------
-
-
-    // ---------------------------------------------------------------------
-
 
     // contract was terminated and can't be used anymore
     bool public terminated = false;
 
-    // initialized
-    bool internal initialized = false;
+    // trading is active (after initialization and before termination)
+    bool public trading = false;
 
-    // Last price which was accepted in order book per unit
-    uint256 public value = 0;
+    // presale
+    bool public presale = false;
+    uint256 public presalePrice = 0;
+    uint256 public presaleShares = 0;
 
     // Offers
     struct Order {
@@ -80,7 +72,6 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     }
     mapping (address => Order) public orders;
     address[] public orderAddresses;
-
 
     uint256 public escrow;
 
@@ -101,14 +92,6 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
 
     // ---- assets
 
-    // assets added to this fund
-    struct Asset {
-        address token;
-        uint256 amount;
-        uint256 disbursed;
-    }
-    Asset[] public assets;
-
     // Set owner and DI OriToken
     constructor(address _tokenAddress, string memory __name, string memory __symbol, address _factory, address _owner)
     VestingToken(_tokenAddress) DeVest(_owner, _factory) {
@@ -128,8 +111,14 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     *  Verify tangible is active and initialized
     *
     */
-    modifier _isActive() {
-        require(initialized, 'E1');
+    modifier _tradingActive() {
+        require(trading, 'Trading not active');
+        require(!terminated, 'E2');
+        _;
+    }
+
+    modifier _presaleActive() {
+        require(presale, 'E1');
         require(!terminated, 'E2');
         _;
     }
@@ -141,28 +130,17 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     /**
     *  Update stored bids, if bid was spend, remove from list
     */
-    function deductAmountfromOrder(address orderOwner, uint256 amount) internal {
-        require(orders[orderOwner].amount >= amount, "Insufficient funds");
-
-        orders[orderOwner].amount -= amount;
-        uint256 totalPrice = orders[orderOwner].price * amount;
-
-        // in case of bid deduct escrow
-        if (orders[orderOwner].bid == true){
-            uint256 escrowDeduct = totalPrice + ((totalPrice * getRoyalty()) / 1000);
-            orders[orderOwner].escrow -= escrowDeduct;
-            escrow -= escrowDeduct; // deduct from total escrow
-        }
-
-        if (orders[orderOwner].amount == 0){
-            uint256 index = orders[orderOwner].index;
-            orderAddresses[index] = orderAddresses[orderAddresses.length-1];
-            orders[orderAddresses[orderAddresses.length-1]].index = index;
-            orderAddresses.pop();
-        }
+    function _removeOrder(address orderOwner) internal {
+        uint256 index = orders[orderOwner].index;
+        orderAddresses[index] = orderAddresses[orderAddresses.length-1];
+        orders[orderAddresses[orderAddresses.length-1]].index = index;
+        orderAddresses.pop();
     }
 
     function swapShares(address to, address from, uint256 amount) internal {
+        require(getShares(from) >= amount, "Insufficient shares");
+        require(from != to, "Can't transfer to yourself");
+
         // if shareholder has no shares add him as new
         if (shares[to] == 0) {
             shareholdersIndex[to] = shareholders.length;
@@ -188,26 +166,62 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     /**
      *  Initialize TST as tangible
      */
-    function initialize(uint256 amount, uint tax, uint8 decimal) public virtual returns (bool){
-        require(!initialized, 'E3');
+    function initialize(uint tax, uint8 decimal) public virtual{
+        require(!trading, 'E3');
         require(owner() == _msgSender(), 'E4');
         require(tax >= 0 && tax <= 1000, 'E5');
-        require(amount >= (10 ** decimal), 'E8');
         require(decimal >= 0 && decimal <= 10, 'Max 16 decimals');
 
         // set attributes
         _decimals = decimal += 2;
-        value = amount;
-        setRoyalty(tax);
+        _setRoyalties(tax, owner());
 
         // assign to publisher all shares
         shares[_msgSender()] = (10 ** _decimals);
         _totalSupply = (10 ** _decimals);
 
-        // start bidding
-        initialized = true;
+        // start trading
+        trading = true;
+    }
 
-        return true;
+    /**
+      * optional initialization will not assign 100% to the owner, rather allow a kind of presale in which
+      * the owner can sell a certain amount of shares to a certain price and after all shares are sold
+      * the contract will be initialized.
+      */
+     function initializePresale(uint tax, uint8 decimal, uint256 price) public virtual{
+         require(!trading, 'E3');
+         require(owner() == _msgSender(), 'E4');
+         require(tax >= 0 && tax <= 1000, 'E5');
+         require(decimal >= 0 && decimal <= 10, 'Max 16 decimals');
+
+         // set attributes
+         _decimals = decimal += 2;
+         _setRoyalties(tax, owner());
+         _totalSupply = (10 ** _decimals);
+
+         presale = true;
+         presalePrice = price;
+     }
+
+    function purchase(uint256 amount) public payable _presaleActive {
+        require(presale, 'E10');
+        require(amount > 0 && amount <= _totalSupply, 'E9');
+        require(presaleShares + amount <= _totalSupply, 'Not enough shares left to purchase');
+
+        // check if enough escrow allowed and pick the cash
+        __allowance(_msgSender(), amount * presalePrice);
+        __transferFrom(_msgSender(), address(this), amount * presalePrice);
+
+        // assign bought shares to buyer
+        shares[_msgSender()] += amount;
+
+        presaleShares += amount;
+        if (presaleShares >= _totalSupply) {
+            presale = false;
+            trading = true;
+            __transfer(owner(), __balanceOf(address(this)));
+        }
     }
 
     // ----------------------------------------------------------------------------------------------------------
@@ -218,6 +232,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     * Check for same level of disburse !!
     */
     function transfer(address recipient, uint256 amount) external payable takeFee {
+        require(amount > 0 && amount <= (10 ** _decimals), 'E12');
         if (shares[_msgSender()] != amount){
             if (shares[recipient] > 0){
                 require(shareholdersLevel[_msgSender()] == shareholdersLevel[recipient], "Recipients or sender has pending disbursements!");
@@ -232,7 +247,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     *  _price: price for the amount of shares
     *  amount: amount
     */
-    function buy(uint256 _price, uint256 amount) public payable virtual override nonReentrant _isActive{
+    function buy(uint256 _price, uint256 amount) public payable virtual override nonReentrant _tradingActive {
         require(amount > 0 && amount <= (10 ** _decimals), 'E9');
         require(_price > 0, 'E10');
         require(orders[_msgSender()].amount == 0, 'E11');
@@ -250,14 +265,12 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
         // pull escrow
         __transferFrom(_msgSender(), address(this), _escrow);
         escrow += _escrow;
-
-        emit ordered(_msgSender(), _price, amount, true);
     }
 
     /**
      *  Sell order
      */
-    function sell(uint256 _price, uint256 amount) public payable override nonReentrant _isActive {
+    function sell(uint256 _price, uint256 amount) public payable override nonReentrant _tradingActive {
         require(amount > 0 && amount <= (10 ** _decimals), 'E12');
         require(_price > 0, 'E13');
         require(shares[_msgSender()]  > 0, 'E14');
@@ -266,69 +279,72 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
         // store bid
         orders[_msgSender()] = Order(orderAddresses.length, _price, amount, 0, false);
         orderAddresses.push(_msgSender());
-
-        emit ordered(_msgSender(), _price, amount, false);
     }
 
     /**
      *  Accept order
      */
-    function accept(address orderOwner, uint256 amount) external override payable nonReentrant _isActive takeFee{
+    function accept(address orderOwner, uint256 amount) external override payable nonReentrant _tradingActive takeFee{
         require(amount > 0, "E16");
         require(orders[orderOwner].amount >= amount, "E17");
         require(_msgSender() != orderOwner, "E18");
 
         Order memory order = orders[orderOwner];
 
-        // In case of bid, check if owner has enough shares
-        if (order.bid == true)
-            require(shares[_msgSender()] >= amount,"E19");
-        else
-            require(shares[orderOwner] >= amount, "E19");
-
         // calculate taxes
         uint256 cost = order.price * amount;
         uint256 tax = (cost * getRoyalty()) / 1000;
         uint256 totalCost = cost + tax;
 
+        // deduct amount from order
+        orders[orderOwner].amount -= amount;
+
         // accepting on bid order
         if (order.bid == true) {
-            // accepting bid order
-            // so caller is accepting to sell his share to order owner
-            // -> escrow from order can be transferred to owner
-            __transfer(_msgSender(), cost);
+            _acceptBidOrder(orderOwner, cost, totalCost, amount, order.price);
         } else {
-            // what the buyer needs to pay (including taxes)
-            __transferFrom(_msgSender(), address(this), totalCost);
-            __transfer(orderOwner, cost);
+            _acceptAskOrder(orderOwner, cost, totalCost, amount, order.price);
         }
 
-        // pay tangibles
-        if (tax != 0)
-            __transfer(owner(), tax);
+        // pay royalty
+        __transfer(owner(), tax);
+    }
 
-        // TODO cover different event when accepting bid/ask
-        // msg sender is accepting sell order
-        if (order.bid == false) {
-            swapShares(_msgSender(), orderOwner, amount);
-        } else {
-            // msg sender is accepting buy order
-            swapShares(orderOwner, _msgSender(), amount);
-        }
+    /**
+     * accepting bid order
+     * so caller is accepting to sell his share to order owner
+     * -> escrow from order can be transferred to owner
+     */
+    function _acceptBidOrder(address orderOwner, uint256 cost, uint256 totalCost, uint256 amount, uint256 price) internal {
+        require(shares[_msgSender()] >= amount,"E19");
+
+        __transfer(_msgSender(), cost);
+        swapShares(orderOwner, _msgSender(), amount);
+        emit Trade(orderOwner, _msgSender(), amount, price);
+
+        orders[orderOwner].escrow -= totalCost;
+        escrow -= totalCost; // deduct from total escrow
+
+        if (orders[orderOwner].amount == 0)
+            _removeOrder(orderOwner);
+    }
+
+
+    function _acceptAskOrder(address orderOwner, uint256 cost, uint256 totalCost, uint256 amount, uint256 price) internal {
+        require(shares[orderOwner] >= amount, "E19");
+
+        __transferFrom(_msgSender(), address(this), totalCost);
+        __transfer(orderOwner, cost);
+        swapShares(_msgSender(), orderOwner, amount);
+        emit Trade(_msgSender(), orderOwner, amount, price);
 
         // update offer
-        deductAmountfromOrder(orderOwner, amount);
-
-        // update last transaction price (uint)
-        //price = order.price;
-        value = ((value*(100-amount))/100) + cost;
-
-        // TODO cover different event when accepting bid/ask
-        emit swapped(_msgSender(), orderOwner, amount, totalCost);
+        if (orders[orderOwner].amount == 0)
+            _removeOrder(orderOwner);
     }
 
     // Cancel order and return escrow
-    function cancel() public virtual override _isActive() returns (bool) {
+    function cancel() public virtual override _tradingActive() {
         require(orders[_msgSender()].amount > 0, 'E20');
 
         Order memory _order = orders[_msgSender()];
@@ -337,14 +353,12 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
             __transfer(_msgSender(), _order.escrow);
 
         // update bids
-        deductAmountfromOrder(_msgSender(), _order.amount);
-
-        return true;
+        _removeOrder(_msgSender());
     }
 
     // Pay usage charges
-    function pay(uint256 amount) public payable override _isActive takeFee nonReentrant {
-        require(initialized, 'E21');
+    function pay(uint256 amount) public payable override _tradingActive takeFee nonReentrant {
+        require(trading, 'E21');
         require(!terminated, 'E22');
         require(amount > 0, 'E23');
 
@@ -356,13 +370,13 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
         uint256 tangible = ((getRoyalty() * amount) / 1000);
         __transfer(owner(), tangible);
 
-        emit payment(_msgSender(), amount);
+        emit Payment(_msgSender(), amount);
     }
 
     // TODO how often can this be called ??
     // Mark the current available value as disbursed
     // so shareholders can withdraw
-    function disburse() public override _isActive returns (uint256) {
+    function disburse() public override _tradingActive returns (uint256) {
         uint256 balance = __balanceOf(address(this));
 
         // check if there is balance to disburse
@@ -378,11 +392,14 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     }
 
     // Terminate this contract, and pay-out all remaining investors
-    function terminate() public override _isActive()  returns (bool) {
-        require(owner() == _msgSender(), 'E25');
+    function terminate() public override onlyOwner returns (bool) {
+        if (presale){
+            disburseLevels.push(_totalSupply * presalePrice);
+            totalDisbursed += _totalSupply * presalePrice;
+        } else {
+            disburse();
+        }
 
-        // terminate contract
-        disburse();
         terminated = true;
 
         return terminated;
@@ -392,84 +409,22 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     // -------------------------------------------- PUBLIC GETTERS ----------------------------------------------
     // ----------------------------------------------------------------------------------------------------------
 
-    /**
-    *  Add a token to the fund
-    *  token: address of token to add
-    *  amount: amount to add
-    */
-    function addAsset(address token, uint256 amount) public payable virtual nonReentrant {
-        require(token != _vestingToken, "Vesting token cannot be added as Asset");
-        require(!initialized, 'Tangible already initialized');
-        require(amount >= 0, 'Invalid amount');
-
-        IERC20 _token = IERC20(token);
-
-        // transfer assets to this contract
-        _token.transferFrom(_msgSender(), address(this), amount);
-
-        assets.push(Asset(token, amount, 0));
-    }
-
-    function withdraw() public payable nonReentrant{
+    function withdraw() public payable nonReentrant {
         require(shares[_msgSender()] > 0, 'No shares available');
-
-        // check assets attached then withdraw is possible
-        if (assets.length > 0)
-            _withdrawWithAssets();
-        else
-            _withdrawDividends();
-    }
-
-    /**
-    *  Withdraw amount of balance collected in TST
-    *  in amount of the shares of shareholder
-    */
-    function _withdrawDividends() private{
         require(shareholdersLevel[_msgSender()]<disburseLevels.length, "Nothing to disburse");
 
         // calculate and transfer claiming amount
-        uint256 amount = (shares[_msgSender()] * disburseLevels[shareholdersLevel[_msgSender()]] / (10 ** _decimals));
+        uint256 amount = (shares[_msgSender()] * disburseLevels[shareholdersLevel[_msgSender()]] / _totalSupply);
         __transfer(_msgSender(), amount);
 
         // increase shareholders disburse level
         shareholdersLevel[_msgSender()] += 1;
     }
 
-    /**
-    *  Withdraw all assets contained in this TST, in amount
-    *  the shareholders share
-    */
-    function _withdrawWithAssets() private{
-        require(terminated, 'Withdraw is only possible after termination');
-
-        for(uint256 i=0;i<assets.length;i++){
-            IERC20 _token = IERC20(assets[i].token);
-            uint256 amount = ((shares[_msgSender()] * assets[i].amount) / (10 ** _decimals));
-            _token.transfer(_msgSender(), amount);
-        }
-
-        shares[_msgSender()] = 0;
-    }
-
     // ----------------------------------------------------------------------------------------------------------
     // -------------------------------------------- PUBLIC GETTERS ----------------------------------------------
     // ----------------------------------------------------------------------------------------------------------
 
-    struct AssetInfo {
-        address token;
-        uint256 balance;
-    }
-
-    function getAssetBalance() public view returns (AssetInfo[] memory){
-        AssetInfo[] memory _assets = new AssetInfo[](assets.length);
-
-        for(uint256 i=0;i<assets.length;i++){
-            IERC20 _token = IERC20(assets[i].token);
-            _assets[i] = AssetInfo(assets[i].token, _token.balanceOf(address(this)));
-        }
-
-        return _assets;
-    }
 
     function getOrders() external view returns (address[] memory) {
         return orderAddresses;
@@ -481,12 +436,18 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
 
     // Get shares of one investor
     function balanceOf(address _owner) public view returns (uint256) {
-        return shares[_owner];
+        if (orders[_owner].amount > 0){
+            return shares[_owner] - orders[_owner].amount;
+        } else
+            return shares[_owner];
     }
 
     // Get shares of one investor
     function getShares(address _owner) public view returns (uint256) {
-        return shares[_owner];
+        if (orders[_owner].amount > 0){
+            return shares[_owner] - orders[_owner].amount;
+        } else
+            return shares[_owner];
     }
 
     // Get shareholder addresses

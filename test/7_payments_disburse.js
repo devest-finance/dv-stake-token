@@ -39,8 +39,8 @@ contract('Disburse Payments', (accounts) => {
 
     it('Pay', async () => {
         // create a bid to have escrow, which should remain
-        const value = (await modelOneInstance.value.call()).toNumber();
-        const price = value / 100;
+        //const value = (await modelOneInstance.value.call()).toNumber();
+        const price = 3000000000 / 100;
         await AccountHelper.createERCBuyOrder(erc20Token,modelOneInstance, 5, price, accounts[3])
 
         // balance before pay (from escrow)

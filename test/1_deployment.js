@@ -39,10 +39,11 @@ contract('Testing Deployments', (accounts) => {
         const name = await devestOne.name.call();
         assert(name, "Example", "Invalid name on TST");
 
-        await devestOne.initialize(3000000000, 10, 0, { from: accounts[0] });
+        // 3000000000
+        await devestOne.initialize(10, 0, { from: accounts[0] });
 
-        const value = (await devestOne.value.call()).toNumber();
-        assert.equal(value, 3000000000, "Invalid price on initialized tangible");
+        const totalSupply = (await devestOne.totalSupply.call()).toNumber();
+        assert.equal(totalSupply, 100, "Invalid price on initialized tangible");
     });
 
     it('Check DvStakeToken Detach', async () => {
@@ -57,7 +58,8 @@ contract('Testing Deployments', (accounts) => {
         const exampleOneContract = await stakeTokenFactory.issue(erc20Token.address, "Example", "EXP", { from: accounts[0], value: 100000000 });
         exampleModelAddress = exampleOneContract.logs[0].args[1];
         const subjectContract = await DvStakeToken.at(exampleModelAddress);
-        await subjectContract.initialize(1000000000, 10, 0, { from: accounts[0] });
+        // 1000000000
+        await subjectContract.initialize(10, 0, { from: accounts[0] });
 
         const balanceBefore = await web3.eth.getBalance(DeVestDAO.address);
         assert.equal(balanceBefore, 20000000, "Invalid balance on DeVest before DAO");
