@@ -59,8 +59,10 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
 
     // presale
     bool public presale = false;
-    uint256 public presalePrice = 0;
-    uint256 public presaleShares = 0;
+    uint256 public presalePrice = 0;    // price per share
+    uint256 public presaleShares = 0;   // total shares available for presale
+    uint256 public presaleStart = 0;    // start date of presale
+    uint256 public presaleEnd = 0;      // end date of presale
 
     // Offers
     struct Order {
@@ -70,10 +72,10 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
         uint256 escrow;
         bool bid; // buy = true | sell = false
     }
-    mapping (address => Order) public orders;
-    address[] public orderAddresses;
+    mapping (address => Order) public orders;  // all orders
+    address[] public orderAddresses;       // all order addresses
 
-    uint256 public escrow;
+    uint256 public escrow;                // total amount in escrow
 
     // Stakes
     mapping (address => uint256) internal shares;                   // shares of shareholder
@@ -85,10 +87,10 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     uint256 internal totalDisbursed;    // Total amount disbursed (not available anymore)
 
     // metadata
-    string private _name;
-    string private _symbol;
-    uint8 private _decimals;
-    uint256 private _totalSupply;
+    string private _name;           // name of the tangible
+    string private _symbol;         // symbol of the tangible
+    uint8 private _decimals;        // decimals of the tangible
+    uint256 private _totalSupply;   // total supply of shares (10^decimals)
 
     // ---- assets
 
@@ -178,8 +180,8 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
         _setRoyalties(tax, owner());
 
         // assign to publisher all shares
-        shares[_msgSender()] = (10 ** _decimals);
         _totalSupply = (10 ** _decimals);
+        shares[_msgSender()] = _totalSupply;
 
         // start trading
         trading = true;
@@ -190,7 +192,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
       * the owner can sell a certain amount of shares to a certain price and after all shares are sold
       * the contract will be initialized.
       */
-     function initializePresale(uint tax, uint8 decimal, uint256 price) public onlyOwner virtual{
+     function initializePresale(uint tax, uint8 decimal, uint256 price, uint256 start, uint256 end) public onlyOwner virtual{
          require(!trading, 'E3');
          require(!terminated, 'E2');
          require(tax >= 0 && tax <= 1000, 'E5');
@@ -203,10 +205,13 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
 
          presale = true;
          presalePrice = price;
+         presaleStart = start;
+         presaleEnd = end;
      }
 
     function purchase(uint256 amount) public payable _presaleActive {
         require(presale, 'E10');
+        require(block.timestamp >= presaleStart && block.timestamp <= presaleEnd, 'PreSale didn\'t start yet or ended already');
         require(amount > 0 && amount <= _totalSupply, 'E9');
         require(presaleShares + amount <= _totalSupply, 'Not enough shares left to purchase');
 
@@ -225,6 +230,10 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
         }
     }
 
+    function getStart() public view returns (uint256, uint256) {
+        return (block.timestamp - presaleStart, presaleEnd - block.timestamp);
+    }
+
     // ----------------------------------------------------------------------------------------------------------
     // ------------------------------------------------ TRADING -------------------------------------------------
 
@@ -233,7 +242,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     * Check for same level of disburse !!
     */
     function transfer(address recipient, uint256 amount) external payable takeFee {
-        require(amount > 0 && amount <= (10 ** _decimals), 'E12');
+        require(amount > 0 && amount <= _totalSupply, 'E12');
         if (shares[_msgSender()] != amount){
             if (shares[recipient] > 0){
                 require(shareholdersLevel[_msgSender()] == shareholdersLevel[recipient], "Recipients or sender has pending disbursements!");
@@ -249,7 +258,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     *  amount: amount
     */
     function buy(uint256 _price, uint256 amount) public payable virtual override nonReentrant _tradingActive {
-        require(amount > 0 && amount <= (10 ** _decimals), 'E9');
+        require(amount > 0 && amount <= _totalSupply, 'E9');
         require(_price > 0, 'E10');
         require(orders[_msgSender()].amount == 0, 'E11');
 
@@ -272,7 +281,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
      *  Sell order
      */
     function sell(uint256 _price, uint256 amount) public payable override nonReentrant _tradingActive {
-        require(amount > 0 && amount <= (10 ** _decimals), 'E12');
+        require(amount > 0 && amount <= _totalSupply, 'E12');
         require(_price > 0, 'E13');
         require(shares[_msgSender()]  > 0, 'E14');
         require(orders[_msgSender()].amount == 0, 'E15');

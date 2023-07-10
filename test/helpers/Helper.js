@@ -48,7 +48,13 @@ class Helper {
         const _name = await modelOneInstance.name.call();
         assert(_name, "Example", "Invalid name on TST");
 
-        await modelOneInstance.initializePresale(tax, decimal, price, { from: sender });
+        const start = new Date();
+        start.setHours(start.getHours() - 10);
+        const end = new Date(start);
+        end.setHours(start.getHours() + 20);
+        await modelOneInstance.initializePresale(tax, decimal, price, parseInt(start.getTime() / 1000), parseInt(end.getTime() / 1000), { from: sender });
+
+        const _start = await modelOneInstance.getStart.call();
 
         return modelOneInstance;
     }
