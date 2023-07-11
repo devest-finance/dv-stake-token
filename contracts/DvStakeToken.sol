@@ -219,6 +219,13 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
         __allowance(_msgSender(), amount * presalePrice);
         __transferFrom(_msgSender(), address(this), amount * presalePrice);
 
+        // check if sender is already in shareholders
+        if (shares[_msgSender()] == 0){
+            shareholdersIndex[_msgSender()] = shareholders.length;
+            shareholdersLevel[_msgSender()] = 0;
+            shareholders.push(_msgSender());
+        }
+
         // assign bought shares to buyer
         shares[_msgSender()] += amount;
 
@@ -446,10 +453,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
 
     // Get shares of one investor
     function balanceOf(address _owner) public view returns (uint256) {
-        if (orders[_owner].amount > 0){
-            return shares[_owner] - orders[_owner].amount;
-        } else
-            return shares[_owner];
+        return getShares(_owner);
     }
 
     // Get shares of one investor
