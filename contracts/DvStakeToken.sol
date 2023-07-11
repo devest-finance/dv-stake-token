@@ -7,36 +7,6 @@ import "@openzeppelin/contracts/utils/Context.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./extensions/DeVest.sol";
 
-/** errors
-E1 : Only owner can initialize tangibles
-E2 : Tangible was terminated
-E3 : Tangible already initialized
-E4 : Only owner can initialize tangibles
-E5 : Invalid tax value
-E6 : Invalid tax value
-E7 : Currently only max 2 decimals supported
-E8 : Amount must be bigger than 100
-E9 : Invalid amount submitted
-E10 : Invalid price submitted
-E11 : Active buy order, cancel first
-E12 : Invalid amount submitted
-E13 : Invalid price submitted
-E14 : Insufficient shares
-E15 : Active order, cancel first
-E16 : Invalid amount submitted
-E17 : Invalid order
-E18 : Can't accept your own order
-E19 : Insufficient shares
-E20 : No open bid
-E21 : Tangible was not initialized
-E22 : Share was terminated
-E23 : Invalid amount provided
-E24 : Only shareholders can vote for switch tangible
-E25 : Only owner can termination
-E26 : Only DeVest can update Fees
-*/
-
-
 // DeVest Investment Model One
 // Bid & Offer
 contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, DeVest {
@@ -51,14 +21,17 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
 
     // ---------------------------- ERRORS --------------------------------
 
-    // contract was terminated and can't be used anymore
-    bool public terminated = false;
+    // ---------------------------- STORAGE ----------------------------------
 
-    // trading is active (after initialization and before termination)
-    bool public trading = false;
+    enum States {
+        Created,
+        Presale,
+        Trading,
+        Terminated
+    }
 
-    // presale
-    bool public presale = false;
+    States public state = States.Created;
+
     uint256 public presalePrice = 0;    // price per share
     uint256 public presaleShares = 0;   // total shares available for presale
     uint256 public presaleStart = 0;    // start date of presale
@@ -110,18 +83,16 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     // ----------------------------------------------------------------------------------------------------------
 
     /**
-    *  Verify tangible is active and initialized
+    *  Verify required state
     *
     */
-    modifier _tradingActive() {
-        require(trading, 'Trading not active');
-        require(!terminated, 'E2');
+    modifier atState(States _state) {
+        require(state == _state, "Not available in current state");
         _;
     }
 
-    modifier _presaleActive() {
-        require(presale, 'E1');
-        require(!terminated, 'E2');
+    modifier notState(States _state) {
+        require(state != _state, "Not available in current state");
         _;
     }
 
@@ -169,11 +140,8 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     /**
      *  Initialize TST as tangible
      */
-    function initialize(uint tax, uint8 decimal) public onlyOwner virtual{
-        require(!trading, 'E3');
-        require(!presale, 'E3');
-        require(!terminated, 'E2');
-        require(tax >= 0 && tax <= 1000, 'E5');
+    function initialize(uint tax, uint8 decimal) public onlyOwner atState(States.Created) virtual{
+        require(tax >= 0 && tax <= 1000, 'Invalid tax value');
         require(decimal >= 0 && decimal <= 10, 'Max 16 decimals');
 
         // set attributes
@@ -185,7 +153,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
         shares[_msgSender()] = _totalSupply;
 
         // start trading
-        trading = true;
+        state = States.Trading;
     }
 
     /**
@@ -193,10 +161,9 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
       * the owner can sell a certain amount of shares to a certain price and after all shares are sold
       * the contract will be initialized.
       */
-     function initializePresale(uint tax, uint8 decimal, uint256 price, uint256 start, uint256 end) public onlyOwner virtual{
-         require(!trading, 'E3');
-         require(!terminated, 'E2');
-         require(tax >= 0 && tax <= 1000, 'E5');
+     function initializePresale(uint tax, uint8 decimal, uint256 price, uint256 start, uint256 end)
+     public onlyOwner atState(States.Created) virtual{
+         require(tax >= 0 && tax <= 1000, 'Invalid tax value');
          require(decimal >= 0 && decimal <= 10, 'Max 16 decimals');
 
          // set attributes
@@ -204,16 +171,15 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
          _setRoyalties(tax, owner());
          _totalSupply = (10 ** _decimals);
 
-         presale = true;
+         state = States.Presale;
          presalePrice = price;
          presaleStart = start;
          presaleEnd = end;
      }
 
-    function purchase(uint256 amount) public payable _presaleActive {
-        require(presale, 'E10');
+    function purchase(uint256 amount) public payable atState(States.Presale) virtual{
         require(block.timestamp >= presaleStart && block.timestamp <= presaleEnd, 'PreSale didn\'t start yet or ended already');
-        require(amount > 0 && amount <= _totalSupply, 'E9');
+        require(amount > 0 && amount <= _totalSupply, 'Invalid amount submitted');
         require(presaleShares + amount <= _totalSupply, 'Not enough shares left to purchase');
 
         // check if enough escrow allowed and pick the cash
@@ -232,8 +198,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
 
         presaleShares += amount;
         if (presaleShares >= _totalSupply) {
-            presale = false;
-            trading = true;
+            state = States.Trading;
             __transfer(owner(), __balanceOf(address(this)));
         }
     }
@@ -250,7 +215,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     * Check for same level of disburse !!
     */
     function transfer(address recipient, uint256 amount) external payable takeFee {
-        require(amount > 0 && amount <= _totalSupply, 'E12');
+        require(amount > 0 && amount <= _totalSupply, 'Invalid amount submitted');
         if (shares[_msgSender()] != amount){
             if (shares[recipient] > 0){
                 require(shareholdersLevel[_msgSender()] == shareholdersLevel[recipient], "Recipients or sender has pending disbursements!");
@@ -265,10 +230,10 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     *  _price: price for the amount of shares
     *  amount: amount
     */
-    function buy(uint256 _price, uint256 amount) public payable virtual override nonReentrant _tradingActive {
-        require(amount > 0 && amount <= _totalSupply, 'E9');
-        require(_price > 0, 'E10');
-        require(orders[_msgSender()].amount == 0, 'E11');
+    function buy(uint256 _price, uint256 amount) public payable virtual override nonReentrant atState(States.Trading) {
+        require(amount > 0 && amount <= _totalSupply, 'Invalid amount submitted');
+        require(_price > 0, 'Invalid price submitted');
+        require(orders[_msgSender()].amount == 0, 'Active buy order, cancel first');
 
         // add tax to escrow
         uint256 _escrow = (_price * amount) + (_price * amount * getRoyalty()) / 1000;
@@ -288,11 +253,11 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     /**
      *  Sell order
      */
-    function sell(uint256 _price, uint256 amount) public payable override nonReentrant _tradingActive {
-        require(amount > 0 && amount <= _totalSupply, 'E12');
-        require(_price > 0, 'E13');
-        require(shares[_msgSender()]  > 0, 'E14');
-        require(orders[_msgSender()].amount == 0, 'E15');
+    function sell(uint256 _price, uint256 amount) public payable override nonReentrant atState(States.Trading) {
+        require(amount > 0 && amount <= _totalSupply, 'Invalid amount submitted');
+        require(_price > 0, 'Invalid price submitted');
+        require(shares[_msgSender()]  > 0, 'Insufficient shares');
+        require(orders[_msgSender()].amount == 0, 'Active order, cancel first');
 
         // store bid
         orders[_msgSender()] = Order(orderAddresses.length, _price, amount, 0, false);
@@ -302,10 +267,11 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     /**
      *  Accept order
      */
-    function accept(address orderOwner, uint256 amount) external override payable nonReentrant _tradingActive takeFee{
-        require(amount > 0, "E16");
-        require(orders[orderOwner].amount >= amount, "E17");
-        require(_msgSender() != orderOwner, "E18");
+    function accept(address orderOwner, uint256 amount) external override
+    payable nonReentrant atState(States.Trading) takeFee{
+        require(amount > 0, "Invalid amount submitted");
+        require(orders[orderOwner].amount >= amount, "Invalid order");
+        require(_msgSender() != orderOwner, "Can't accept your own order");
 
         Order memory order = orders[orderOwner];
 
@@ -334,7 +300,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
      * -> escrow from order can be transferred to owner
      */
     function _acceptBidOrder(address orderOwner, uint256 cost, uint256 totalCost, uint256 amount, uint256 price) internal {
-        require(shares[_msgSender()] >= amount,"E19");
+        require(shares[_msgSender()] >= amount,"Insufficient shares");
 
         __transfer(_msgSender(), cost);
         swapShares(orderOwner, _msgSender(), amount);
@@ -349,7 +315,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
 
 
     function _acceptAskOrder(address orderOwner, uint256 cost, uint256 totalCost, uint256 amount, uint256 price) internal {
-        require(shares[orderOwner] >= amount, "E19");
+        require(shares[orderOwner] >= amount, "Insufficient shares");
 
         __transferFrom(_msgSender(), address(this), totalCost);
         __transfer(orderOwner, cost);
@@ -362,8 +328,8 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     }
 
     // Cancel order and return escrow
-    function cancel() public virtual override  _tradingActive() {
-        require(orders[_msgSender()].amount > 0, 'E20');
+    function cancel() public virtual override atState(States.Trading) {
+        require(orders[_msgSender()].amount > 0, 'Invalid order');
 
         Order memory _order = orders[_msgSender()];
         // return escrow leftover
@@ -375,10 +341,8 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     }
 
     // Pay usage charges
-    function pay(uint256 amount) public payable override _tradingActive takeFee nonReentrant {
-        require(trading, 'E21');
-        require(!terminated, 'E22');
-        require(amount > 0, 'E23');
+    function pay(uint256 amount) public payable override atState(States.Trading) takeFee nonReentrant {
+        require(amount > 0, 'Invalid amount provided');
 
         // check if enough escrow allowed and pull
         __allowance(_msgSender(), amount);
@@ -394,7 +358,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     // TODO how often can this be called ??
     // Mark the current available value as disbursed
     // so shareholders can withdraw
-    function disburse() public override _tradingActive returns (uint256) {
+    function disburse() public override atState(States.Trading) returns (uint256) {
         uint256 balance = __balanceOf(address(this));
 
         // check if there is balance to disburse
@@ -410,17 +374,15 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     }
 
     // Terminate this contract, and pay-out all remaining investors
-    function terminate() public override onlyOwner returns (bool) {
-        if (presale){
+    function terminate() public override onlyOwner notState(States.Terminated) {
+        if (state == States.Presale){
             disburseLevels.push(_totalSupply * presalePrice);
             totalDisbursed += _totalSupply * presalePrice;
         } else {
             disburse();
         }
 
-        terminated = true;
-
-        return terminated;
+        state = States.Terminated;
     }
 
     // ----------------------------------------------------------------------------------------------------------

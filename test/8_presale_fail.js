@@ -55,7 +55,7 @@ contract('Presale - terminated', (accounts) => {
         try {
             await modelOneInstance.sell(price, 10, {from: accounts[2]});
         } catch (ex){
-            assert.equal(ex.reason, "Trading not active", "Invalid error message");
+            assert.equal(ex.reason, "Not available in current state", "Invalid error message");
         }
     });
 

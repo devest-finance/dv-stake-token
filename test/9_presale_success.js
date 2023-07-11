@@ -63,7 +63,7 @@ contract('Presale - successful', (accounts) => {
         try {
             await modelOneInstance.sell(price, 10, {from: accounts[2]});
         } catch (ex){
-            assert.equal(ex.reason, "Trading not active", "Invalid error message");
+            assert.equal(ex.reason, "Not available in current state", "Invalid error message");
         }
     });
 
@@ -72,11 +72,8 @@ contract('Presale - successful', (accounts) => {
         await modelOneInstance.purchase(10, {from: accounts[5] });
 
         // check if presale ended and trading started
-        const tradingActive = await modelOneInstance.trading.call();
-        assert.equal(tradingActive, true, "Trading should be active");
-
-        const presaleActive = await modelOneInstance.presale.call();
-        assert.equal(presaleActive, false, "Presale should be ended");
+        const tradingActive = await modelOneInstance.state.call();
+        assert.equal(tradingActive, 2, "Trading should be active");
 
         // check if owner got funds and has no shares
         const fundsOwner = (await erc20Token.balanceOf.call(accounts[0])).toNumber();

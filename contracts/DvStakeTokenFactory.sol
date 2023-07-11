@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.12;
 
-import "../DvStakeToken.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "./extensions/DvFactory.sol";
+import "./DvStakeToken.sol";
 
 
 contract DvStakeTokenFactory is DvFactory {

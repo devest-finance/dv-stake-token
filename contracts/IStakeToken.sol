@@ -28,6 +28,6 @@ interface IStakeToken {
     function disburse() external returns (uint256);
 
     // Terminate
-    function terminate() external returns (bool);
+    function terminate() external;
 
 }

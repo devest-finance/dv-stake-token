@@ -53,7 +53,7 @@ contract('Cancel Orders', (accounts) => {
             await modelOneInstance.cancel({from: accounts[3]});
         } catch (ex){
             // VM Exception while processing transaction: revert No open bid -- Reason given: No open bid.
-            assert.equal(ex.message, "VM Exception while processing transaction: revert E20 -- Reason given: E20.");
+            assert.equal(ex.message, "VM Exception while processing transaction: revert Invalid order -- Reason given: Invalid order.");
         }
         await modelOneInstance.cancel({ from: accounts[4] });
         await modelOneInstance.cancel({ from: accounts[5] });

@@ -88,8 +88,8 @@ contract('Disburse Payments', (accounts) => {
         // call terminate until 50% reached
         await modelOneInstance.terminate({ from: accounts[0] })
 
-        state = await modelOneInstance.terminated.call();
-        assert.equal(state, true, "Contract should be terminated");
+        state = await modelOneInstance.state.call();
+        assert.equal(state, 3, "Contract should be terminated");
     });
 
     it('Check if fees been collected in DeVest DAO', async () => {
