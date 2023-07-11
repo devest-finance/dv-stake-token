@@ -6,7 +6,7 @@ const DvStakeTokenFactory = artifacts.require("DvStakeTokenFactory");
 
 var exampleModelAddress = null;
 
-contract('Mixed Orders', (accounts) => {
+contract('Presale - terminated', (accounts) => {
 
     let erc20Token;
     let stakeTokenFactory;

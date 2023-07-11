@@ -72,4 +72,25 @@ contract('Cancel Orders', (accounts) => {
         assert.equal(fundsOrder4After, fundsOrder5After, "Escrow not returned");
     });
 
+    it('Create sell order and cancel', async () => {
+        await modelOneInstance.sell(40000000, 25, { from: accounts[0] });
+
+        // check the balance of the account
+        const balance = (await modelOneInstance.balanceOf.call(accounts[0])).toNumber();
+        assert.equal(balance, 75, "Funds are not locked in open order");
+
+        const orders = await modelOneInstance.getOrders.call();
+        assert.equal(orders[0], accounts[0], "Invalid sell order created");
+
+        await modelOneInstance.cancel({ from: accounts[0] });
+
+        // check the balance of the account after cancel
+        const balance2 = (await modelOneInstance.balanceOf.call(accounts[0])).toNumber();
+        assert.equal(balance2, 100, "Funds are not unlocked after cancel");
+
+        const orders2 = await modelOneInstance.getOrders.call();
+        assert.equal(orders2.length, 0, "Offers was not cancelled");
+
+    });
+
 });

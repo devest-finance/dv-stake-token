@@ -136,6 +136,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
         uint256 index = orders[orderOwner].index;
         orderAddresses[index] = orderAddresses[orderAddresses.length-1];
         orders[orderAddresses[orderAddresses.length-1]].index = index;
+        delete orders[orderOwner];
         orderAddresses.pop();
     }
 
@@ -361,7 +362,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     }
 
     // Cancel order and return escrow
-    function cancel() public virtual override _tradingActive() {
+    function cancel() public virtual override  _tradingActive() {
         require(orders[_msgSender()].amount > 0, 'E20');
 
         Order memory _order = orders[_msgSender()];
