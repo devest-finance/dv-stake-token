@@ -54,8 +54,6 @@ class Helper {
         end.setHours(start.getHours() + 20);
         await modelOneInstance.initializePresale(tax, decimal, price, parseInt(start.getTime() / 1000), parseInt(end.getTime() / 1000), { from: sender });
 
-        const _start = await modelOneInstance.getStart.call();
-
         return modelOneInstance;
     }
 

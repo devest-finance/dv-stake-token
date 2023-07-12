@@ -2,14 +2,14 @@
 pragma solidity ^0.8.12;
 
 import "./IStakeToken.sol";
-import "./extensions/VestingToken.sol";
-import "@openzeppelin/contracts/utils/Context.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./extensions/DeVest.sol";
+import "@openzeppelin/contracts/utils/Context.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 // DeVest Investment Model One
 // Bid & Offer
-contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, DeVest {
+contract DvStakeToken is IStakeToken, ReentrancyGuard, Context, DeVest {
 
     // ---------------------------- EVENTS ------------------------------------
 
@@ -18,6 +18,9 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
 
     // When payment was received
     event Payment(address indexed from, uint256 amount);
+
+    // When payments been disbursed
+    event Disbursed(uint256 amount);
 
     // ---------------------------- ERRORS --------------------------------
 
@@ -37,7 +40,14 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     uint256 public presaleStart = 0;    // start date of presale
     uint256 public presaleEnd = 0;      // end date of presale
 
-    // Offers
+    /**
+      *  Order struct
+      *  @param index - index of the order
+      *  @param price - price of the order
+      *  @param amount - amount of shares
+      *  @param escrow - amount in escrow
+      *  @param bid - true = buy | false = sell
+      */
     struct Order {
         uint256 index;
         uint256 price;
@@ -48,13 +58,14 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     mapping (address => Order) public orders;  // all orders
     address[] public orderAddresses;       // all order addresses
 
-    uint256 public escrow;                // total amount in escrow
+    // Total amount in escrow
+    uint256 public escrow;
 
     // Stakes
+    address[] internal shareholders;                                // all current shareholders
     mapping (address => uint256) internal shares;                   // shares of shareholder
     mapping (address => uint256) internal shareholdersLevel;        // level of disburse the shareholder withdraw
     mapping (address => uint256) internal shareholdersIndex;        // index of the shareholders address
-    address[] internal shareholders;                                // all current shareholders
 
     uint256[] public disburseLevels;    // Amount disburse in each level
     uint256 internal totalDisbursed;    // Total amount disbursed (not available anymore)
@@ -65,11 +76,12 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     uint8 private _decimals;        // decimals of the tangible
     uint256 private _totalSupply;   // total supply of shares (10^decimals)
 
-    // ---- assets
+    // - Vesting / Trading token reference
+    IERC20 private _token;
 
     // Set owner and DI OriToken
-    constructor(address _tokenAddress, string memory __name, string memory __symbol, address _factory, address _owner)
-    VestingToken(_tokenAddress) DeVest(_owner, _factory) {
+    constructor(address _tokenAddress, string memory __name, string memory __symbol, address _factory, address _owner) DeVest(_owner, _factory) {
+        _token =  IERC20(_tokenAddress);
         _symbol = string(abi.encodePacked("% ", __symbol));
         _name = __name;
 
@@ -94,6 +106,13 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     modifier notState(States _state) {
         require(state != _state, "Not available in current state");
         _;
+    }
+
+    /**
+     *  Internal token allowance
+     */
+    function __allowance(address account, uint256 amount) internal view {
+        require(_token.allowance(account, address(this)) >= amount, 'Insufficient allowance provided');
     }
 
     // ----------------------------------------------------------------------------------------------------------
@@ -184,7 +203,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
 
         // check if enough escrow allowed and pick the cash
         __allowance(_msgSender(), amount * presalePrice);
-        __transferFrom(_msgSender(), address(this), amount * presalePrice);
+        _token.transferFrom(_msgSender(), address(this), amount * presalePrice);
 
         // check if sender is already in shareholders
         if (shares[_msgSender()] == 0){
@@ -199,12 +218,8 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
         presaleShares += amount;
         if (presaleShares >= _totalSupply) {
             state = States.Trading;
-            __transfer(owner(), __balanceOf(address(this)));
+            _token.transfer(owner(), _token.balanceOf(address(this)));
         }
-    }
-
-    function getStart() public view returns (uint256, uint256) {
-        return (block.timestamp - presaleStart, presaleEnd - block.timestamp);
     }
 
     // ----------------------------------------------------------------------------------------------------------
@@ -214,7 +229,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     * Swap shares between owners,
     * Check for same level of disburse !!
     */
-    function transfer(address recipient, uint256 amount) external payable takeFee {
+    function transfer(address recipient, uint256 amount) external payable takeFee nonReentrant notState(States.Created) notState(States.Presale) {
         require(amount > 0 && amount <= _totalSupply, 'Invalid amount submitted');
         if (shares[_msgSender()] != amount){
             if (shares[recipient] > 0){
@@ -246,7 +261,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
         orderAddresses.push(_msgSender());
 
         // pull escrow
-        __transferFrom(_msgSender(), address(this), _escrow);
+        _token.transferFrom(_msgSender(), address(this), _escrow);
         escrow += _escrow;
     }
 
@@ -267,8 +282,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     /**
      *  Accept order
      */
-    function accept(address orderOwner, uint256 amount) external override
-    payable nonReentrant atState(States.Trading) takeFee{
+    function accept(address orderOwner, uint256 amount) external override payable nonReentrant atState(States.Trading) takeFee {
         require(amount > 0, "Invalid amount submitted");
         require(orders[orderOwner].amount >= amount, "Invalid order");
         require(_msgSender() != orderOwner, "Can't accept your own order");
@@ -291,7 +305,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
         }
 
         // pay royalty
-        __transfer(owner(), tax);
+        _token.transfer(owner(), tax);
     }
 
     /**
@@ -302,7 +316,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     function _acceptBidOrder(address orderOwner, uint256 cost, uint256 totalCost, uint256 amount, uint256 price) internal {
         require(shares[_msgSender()] >= amount,"Insufficient shares");
 
-        __transfer(_msgSender(), cost);
+        _token.transfer(_msgSender(), cost);
         swapShares(orderOwner, _msgSender(), amount);
         emit Trade(orderOwner, _msgSender(), amount, price);
 
@@ -317,8 +331,8 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     function _acceptAskOrder(address orderOwner, uint256 cost, uint256 totalCost, uint256 amount, uint256 price) internal {
         require(shares[orderOwner] >= amount, "Insufficient shares");
 
-        __transferFrom(_msgSender(), address(this), totalCost);
-        __transfer(orderOwner, cost);
+        _token.transferFrom(_msgSender(), address(this), totalCost);
+        _token.transfer(orderOwner, cost);
         swapShares(_msgSender(), orderOwner, amount);
         emit Trade(_msgSender(), orderOwner, amount, price);
 
@@ -328,13 +342,13 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     }
 
     // Cancel order and return escrow
-    function cancel() public virtual override atState(States.Trading) {
+    function cancel() public virtual override notState(States.Presale) {
         require(orders[_msgSender()].amount > 0, 'Invalid order');
 
         Order memory _order = orders[_msgSender()];
         // return escrow leftover
         if (_order.bid)
-            __transfer(_msgSender(), _order.escrow);
+            _token.transfer(_msgSender(), _order.escrow);
 
         // update bids
         _removeOrder(_msgSender());
@@ -346,11 +360,11 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
 
         // check if enough escrow allowed and pull
         __allowance(_msgSender(), amount);
-        __transferFrom(_msgSender(), address(this), amount);
+        _token.transferFrom(_msgSender(), address(this), amount);
 
         // pay tangible tax
         uint256 tangible = ((getRoyalty() * amount) / 1000);
-        __transfer(owner(), tangible);
+        _token.transfer(owner(), tangible);
 
         emit Payment(_msgSender(), amount);
     }
@@ -358,8 +372,8 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     // TODO how often can this be called ??
     // Mark the current available value as disbursed
     // so shareholders can withdraw
-    function disburse() public override atState(States.Trading) returns (uint256) {
-        uint256 balance = __balanceOf(address(this));
+    function disburse() public override atState(States.Trading) {
+        uint256 balance = _token.balanceOf(address(this));
 
         // check if there is balance to disburse
         if (balance > escrow){
@@ -370,7 +384,7 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
             totalDisbursed += balance;
         }
 
-        return balance;
+        emit Disbursed(balance);
     }
 
     // Terminate this contract, and pay-out all remaining investors
@@ -389,13 +403,13 @@ contract DvStakeToken is IStakeToken, VestingToken, ReentrancyGuard, Context, De
     // -------------------------------------------- PUBLIC GETTERS ----------------------------------------------
     // ----------------------------------------------------------------------------------------------------------
 
-    function withdraw() public payable nonReentrant {
+    function withdraw() public payable nonReentrant notState(States.Created) notState(States.Presale) {
         require(shares[_msgSender()] > 0, 'No shares available');
         require(shareholdersLevel[_msgSender()]<disburseLevels.length, "Nothing to disburse");
 
         // calculate and transfer claiming amount
         uint256 amount = (shares[_msgSender()] * disburseLevels[shareholdersLevel[_msgSender()]] / _totalSupply);
-        __transfer(_msgSender(), amount);
+        _token.transfer(_msgSender(), amount);
 
         // increase shareholders disburse level
         shareholdersLevel[_msgSender()] += 1;

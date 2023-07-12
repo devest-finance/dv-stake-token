@@ -25,7 +25,7 @@ interface IStakeToken {
     function pay(uint256 amount) payable external;
 
     // Disburse funds
-    function disburse() external returns (uint256);
+    function disburse() external;
 
     // Terminate
     function terminate() external;

@@ -65,7 +65,7 @@ contract('Presale - terminated', (accounts) => {
         try {
             await modelOneInstance.withdraw({ from: accounts[2] });
         } catch (ex){
-            assert.equal(ex.reason, "Nothing to disburse", "Invalid error message");
+            assert.equal(ex.reason, "Not available in current state", "Invalid error message");
         }
         const funds1After = (await erc20Token.balanceOf.call(accounts[2])).toNumber();
         assert.equal(funds1After, funds1Before, "Invalid funds of buyer 2");
