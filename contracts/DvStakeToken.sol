@@ -84,10 +84,6 @@ contract DvStakeToken is IStakeToken, ReentrancyGuard, Context, DeVest {
         _token =  IERC20(_tokenAddress);
         _symbol = string(abi.encodePacked("% ", __symbol));
         _name = __name;
-
-        shareholders.push(_owner);
-        shareholdersIndex[_owner] = 0;
-        shareholdersLevel[_owner] = 0;
     }
 
     // ----------------------------------------------------------------------------------------------------------
@@ -170,6 +166,11 @@ contract DvStakeToken is IStakeToken, ReentrancyGuard, Context, DeVest {
         // assign to publisher all shares
         _totalSupply = (10 ** _decimals);
         shares[_msgSender()] = _totalSupply;
+
+        // Initialize owner as only shareholder
+        shareholders.push(_msgSender());
+        shareholdersIndex[_msgSender()] = 0;
+        shareholdersLevel[_msgSender()] = 0;
 
         // start trading
         state = States.Trading;
