@@ -274,6 +274,7 @@ contract DvStakeToken is IStakeToken, ReentrancyGuard, Context, DeVest {
         require(_price > 0, 'Invalid price submitted');
         require(shares[_msgSender()]  > 0, 'Insufficient shares');
         require(orders[_msgSender()].amount == 0, 'Active order, cancel first');
+        require(amount <= shares[_msgSender()], 'Invalid amount submitted');
 
         // store bid
         orders[_msgSender()] = Order(orderAddresses.length, _price, amount, 0, false);
@@ -381,6 +382,10 @@ contract DvStakeToken is IStakeToken, ReentrancyGuard, Context, DeVest {
             balance -= escrow;
             balance -= totalDisbursed;
 
+            // Check if balance is 0, if so, nothing to disburse
+            if (balance <= 0)
+                return;
+
             disburseLevels.push(balance);
             totalDisbursed += balance;
         }
@@ -411,6 +416,9 @@ contract DvStakeToken is IStakeToken, ReentrancyGuard, Context, DeVest {
         // calculate and transfer claiming amount
         uint256 amount = (shares[_msgSender()] * disburseLevels[shareholdersLevel[_msgSender()]] / _totalSupply);
         _token.transfer(_msgSender(), amount);
+
+        // remove reserved amount
+        totalDisbursed -= amount;
 
         // increase shareholders disburse level
         shareholdersLevel[_msgSender()] += 1;
