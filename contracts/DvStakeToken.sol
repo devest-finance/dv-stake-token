@@ -144,6 +144,7 @@ contract DvStakeToken is IStakeToken, ReentrancyGuard, Context, DeVest {
         // remove shareholder without shares
         if (shares[from] == 0){
             shareholders[shareholdersIndex[from]] = shareholders[shareholders.length-1];
+            shareholdersIndex[shareholders[shareholders.length-1]] = shareholdersIndex[from];
             shareholders.pop();
         }
     }
@@ -349,9 +350,11 @@ contract DvStakeToken is IStakeToken, ReentrancyGuard, Context, DeVest {
 
         Order memory _order = orders[_msgSender()];
         // return escrow leftover
-        if (_order.bid)
+        if (_order.bid) {
             _token.transfer(_msgSender(), _order.escrow);
-
+            escrow -= _order.escrow;
+        }
+        
         // update bids
         _removeOrder(_msgSender());
     }
@@ -444,7 +447,7 @@ contract DvStakeToken is IStakeToken, ReentrancyGuard, Context, DeVest {
 
     // Get shares of one investor
     function getShares(address _owner) public view returns (uint256) {
-        if (orders[_owner].amount > 0){
+        if (orders[_owner].amount > 0 && !orders[_owner].bid){
             return shares[_owner] - orders[_owner].amount;
         } else
             return shares[_owner];

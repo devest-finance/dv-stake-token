@@ -108,7 +108,7 @@ contract('Mixed Orders', (accounts) => {
         assert.equal((await modelOneInstance.getShares.call(accounts[5])).toNumber(), 10, "Invalid shares");
 
         assert.equal(shareholders[3], accounts[7], "Invalid shares");
-        assert.equal((await modelOneInstance.getShares.call(accounts[7])).toNumber(), 0, "Invalid shares"); // 10
+        assert.equal((await modelOneInstance.getShares.call(accounts[7])).toNumber(), 10, "Invalid shares"); // 10
     });
 
     it('Create some Sell Orders', async () => {
