@@ -27,6 +27,11 @@ contract('Presale - terminated', (accounts) => {
         exampleModelAddress = modelOneInstance.address;
     });
 
+    it('Check if there are no shareholders', async () => {
+        const shareholders = await modelOneInstance.getShareholders.call();
+        assert.equal(shareholders.length, 0, "Invalid number of shareholders");
+    });
+
     it('Purchase shares from pre-sale', async () => {
         const price = 1000;
 
@@ -37,6 +42,10 @@ contract('Presale - terminated', (accounts) => {
         await erc20Token.approve(modelOneInstance.address, 20 * 1000, { from: accounts[3] });
         await erc20Token.approve(modelOneInstance.address, 30 * 1000, { from: accounts[4] });
         await modelOneInstance.purchase(10, {from: accounts[2] });
+
+        const shareholders = await modelOneInstance.getShareholders.call();
+        assert.equal(shareholders.length, 1, "After first purchase there should be 1 shareholder");
+
         await modelOneInstance.purchase(20, {from: accounts[3] });
         await modelOneInstance.purchase(30, {from: accounts[4] });
 

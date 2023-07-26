@@ -23,7 +23,7 @@ contract('Presale - successful', (accounts) => {
 
         await AccountHelper.setupAccountFunds(accounts, erc20Token, 40000000000);
         modelOneInstance = await AccountHelper.createTangiblePresale(stakeTokenFactory, erc20Token.address,
-            "Example", "EXP", 3000000000, 100, 0, 1000, accounts[0]);
+            "Example", "EXP", 3000000000, 100, 2, 1000, accounts[0]);
         exampleModelAddress = modelOneInstance.address;
     });
 
@@ -33,30 +33,30 @@ contract('Presale - successful', (accounts) => {
         const funds1BeforeWithdraw = (await erc20Token.balanceOf.call(accounts[2])).toNumber();
 
         // allow token to spend funds
-        await erc20Token.approve(modelOneInstance.address, 30 * 1000, { from: accounts[2] });
-        await erc20Token.approve(modelOneInstance.address, 30 * 1000, { from: accounts[3] });
-        await erc20Token.approve(modelOneInstance.address, 30 * 1000, { from: accounts[4] });
-        await erc20Token.approve(modelOneInstance.address, 20 * 1000, { from: accounts[5] });
-        await modelOneInstance.purchase(30, {from: accounts[2] });
-        await modelOneInstance.purchase(30, {from: accounts[3] });
-        await modelOneInstance.purchase(30, {from: accounts[4] });
+        await erc20Token.approve(modelOneInstance.address, 3000 * 1000, { from: accounts[2] });
+        await erc20Token.approve(modelOneInstance.address, 3000 * 1000, { from: accounts[3] });
+        await erc20Token.approve(modelOneInstance.address, 3000 * 1000, { from: accounts[4] });
+        await erc20Token.approve(modelOneInstance.address, 2000 * 1000, { from: accounts[5] });
+        await modelOneInstance.purchase(3000, {from: accounts[2] });
+        await modelOneInstance.purchase(3000, {from: accounts[3] });
+        await modelOneInstance.purchase(3000, {from: accounts[4] });
         try{
-            await modelOneInstance.purchase(20, {from: accounts[5] });}
+            await modelOneInstance.purchase(2000, {from: accounts[5] });}
         catch (ex){
             assert.equal(ex.reason, "Not enough shares left to purchase", "Invalid error message");
         }
 
         const fundsTangible = (await erc20Token.balanceOf.call(modelOneInstance.address)).toNumber();
-        assert.equal(fundsTangible, 90 * 1000, "Invalid funds submitting buy orders");
+        assert.equal(fundsTangible, 9000 * 1000, "Invalid funds submitting buy orders");
 
         // check shares of buyers
         const shares1 = (await modelOneInstance.balanceOf.call(accounts[2])).toNumber();
         const shares2 = (await modelOneInstance.balanceOf.call(accounts[3])).toNumber();
         const shares3 = (await modelOneInstance.balanceOf.call(accounts[4])).toNumber();
         const shares4 = (await modelOneInstance.balanceOf.call(accounts[5])).toNumber();
-        assert.equal(shares1, 30, "Invalid shares of buyer 2");
-        assert.equal(shares2, 30, "Invalid shares of buyer 3");
-        assert.equal(shares3, 30, "Invalid shares of buyer 4");
+        assert.equal(shares1, 3000, "Invalid shares of buyer 2");
+        assert.equal(shares2, 3000, "Invalid shares of buyer 3");
+        assert.equal(shares3, 3000, "Invalid shares of buyer 4");
         assert.equal(shares4, 0, "Invalid shares of buyer 5");
 
         // check trading not possible
@@ -69,7 +69,7 @@ contract('Presale - successful', (accounts) => {
 
     it('Complete pre-sale and trade', async () => {
         // Purchase the last part and complete pre-sale
-        await modelOneInstance.purchase(10, {from: accounts[5] });
+        await modelOneInstance.purchase(1000, {from: accounts[5] });
 
         // check if presale ended and trading started
         const tradingActive = await modelOneInstance.state.call();
