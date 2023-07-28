@@ -3,7 +3,7 @@ pragma solidity ^0.8.12;
 
 import "@openzeppelin/contracts/utils/Context.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "./extensions/DvFactory.sol";
+import "@devest/contracts/DvFactory.sol";
 import "./DvStakeToken.sol";
 
 

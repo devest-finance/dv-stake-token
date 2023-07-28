@@ -2,11 +2,10 @@
 pragma solidity ^0.8.12;
 
 import "./IStakeToken.sol";
-import "./extensions/DeVest.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "./DvOrderBook.sol";
+import "@devest/contracts/DvOrderBook.sol";
 
 // DeVest Investment Model One
 // Bid & Offer
