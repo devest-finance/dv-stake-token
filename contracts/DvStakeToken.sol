@@ -190,7 +190,7 @@ contract DvStakeToken is DvOrderBook {
     // -------------------------------------------- PUBLIC GETTERS ----------------------------------------------
     // ----------------------------------------------------------------------------------------------------------
 
-    function withdraw() public payable nonReentrant notState(States.Created) notState(States.Presale) {
+    function withdraw() public payable override nonReentrant notState(States.Created) notState(States.Presale) {
         require(shares[_msgSender()] > 0, 'No shares available');
         require(shareholdersLevel[_msgSender()]<disburseLevels.length, "Nothing to disburse");
 

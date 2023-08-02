@@ -87,10 +87,10 @@ contract('Presale - successful', (accounts) => {
         const shares2 = (await modelOneInstance.balanceOf.call(accounts[3])).toNumber();
         const shares3 = (await modelOneInstance.balanceOf.call(accounts[4])).toNumber();
         const shares4 = (await modelOneInstance.balanceOf.call(accounts[5])).toNumber();
-        assert.equal(shares1, 30, "Invalid shares of buyer 2");
-        assert.equal(shares2, 30, "Invalid shares of buyer 3");
-        assert.equal(shares3, 30, "Invalid shares of buyer 4");
-        assert.equal(shares4, 10, "Invalid shares of buyer 5");
+        assert.equal(shares1, 30 * Math.pow(10, 2), "Invalid shares of buyer 2");
+        assert.equal(shares2, 30 * Math.pow(10, 2), "Invalid shares of buyer 3");
+        assert.equal(shares3, 30 * Math.pow(10, 2), "Invalid shares of buyer 4");
+        assert.equal(shares4, 10 * Math.pow(10, 2), "Invalid shares of buyer 5");
     });
 
     /*
