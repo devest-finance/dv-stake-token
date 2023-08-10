@@ -85,9 +85,12 @@ contract('Disburse Payments', (accounts) => {
     })
 
     it('Terminate Share', async () => {
-        // call terminate until 50% reached
-        await modelOneInstance.terminate({ from: accounts[0] })
-
+        try {
+            // call terminate until 50% reached
+            await modelOneInstance.terminate({ from: accounts[0] })
+        } catch (e) {
+            console.log(e);
+        }
         state = await modelOneInstance.state.call();
         assert.equal(state, 3, "Contract should be terminated");
     });

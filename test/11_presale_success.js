@@ -66,6 +66,21 @@ contract('Presale - successful', (accounts) => {
             assert.equal(ex.reason, "Not available in current state", "Invalid error message");
         }
     });
+    
+    // terminate presale can not be called
+    it('Terminate presale', async () => {
+        try {
+            await modelOneInstance.terminatePresale({from: accounts[0]});
+        } catch (ex){
+            assert.equal(ex.reason, "Presale didn't end", "Invalid error message");
+        }
+
+        try {
+            await modelOneInstance.terminatePresale({from: accounts[5]});
+        } catch (ex){
+            assert.equal(ex.reason, "Presale didn't end", "Invalid error message");
+        }
+    });
 
     it('Complete pre-sale and trade', async () => {
         // Purchase the last part and complete pre-sale

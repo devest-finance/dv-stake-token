@@ -2,9 +2,7 @@
 pragma solidity ^0.8.12;
 
 import "./IStakeToken.sol";
-import "@openzeppelin/contracts/utils/Context.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@devest/contracts/DvOrderBook.sol";
 
 // DeVest Investment Model One
@@ -71,7 +69,7 @@ contract DvStakeToken is DvOrderBook {
     /**
      *  Initialize TST as tangible
      */
-    function initialize(uint tax, uint8 decimal) public override(DvOrderBook) onlyOwner atState(States.Created) virtual{
+    function initialize(uint tax, uint8 decimal) public override(DvOrderBook) nonReentrant onlyOwner atState(States.Created) virtual{
         require(tax >= 0 && tax <= 1000, 'Invalid tax value');
         require(decimal >= 0 && decimal <= 10, 'Max 16 decimals');
 
@@ -93,7 +91,7 @@ contract DvStakeToken is DvOrderBook {
     }
 
 
-    function purchase(uint256 amount) public payable atState(States.Presale) override {
+    function purchase(uint256 amount) public payable atState(States.Presale) nonReentrant override {
         require(block.timestamp >= presaleStart && block.timestamp <= presaleEnd, 'PreSale didn\'t start yet or ended already');
         require(amount > 0 && amount <= _totalSupply, 'Invalid amount submitted');
         require(presaleShares + amount <= _totalSupply, 'Not enough shares left to purchase');
@@ -155,7 +153,7 @@ contract DvStakeToken is DvOrderBook {
     // TODO how often can this be called ??
     // Mark the current available value as disbursed
     // so shareholders can withdraw
-    function disburse() public atState(States.Trading) {
+    function disburse() public atState(States.Trading) nonReentrant {
         uint256 balance = _token.balanceOf(address(this));
 
         // check if there is balance to disburse
@@ -182,6 +180,14 @@ contract DvStakeToken is DvOrderBook {
         } else {
             disburse();
         }
+
+        state = States.Terminated;
+    }
+
+    function terminatePresale() public atState(States.Presale) notState(States.Terminated) {
+        require(block.timestamp >= presaleEnd, 'Presale didn\'t end');
+            disburseLevels.push(_totalSupply * presalePrice);
+            totalDisbursed += _totalSupply * presalePrice;
 
         state = States.Terminated;
     }

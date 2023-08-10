@@ -9,8 +9,6 @@ import "./DvStakeToken.sol";
 
 contract DvStakeTokenFactory is DvFactory {
 
-    event deployed(address indexed issuer_address, address indexed contract_address);
-
     constructor() DvFactory() {}
 
     /**
