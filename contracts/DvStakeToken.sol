@@ -98,7 +98,7 @@ contract DvStakeToken is DvOrderBook {
 
         // check if enough escrow allowed and pick the cash
         __allowance(_msgSender(), amount * presalePrice);
-        _token.transferFrom(_msgSender(), address(this), amount * presalePrice);
+        __transferFrom(_msgSender(), address(this), amount * presalePrice);
 
         // check if sender is already in shareholders
         if (shares[_msgSender()] == 0){
@@ -113,7 +113,7 @@ contract DvStakeToken is DvOrderBook {
         presaleShares += amount;
         if (presaleShares >= _totalSupply) {
             state = States.Trading;
-            _token.transfer(owner(), _token.balanceOf(address(this)));
+            __transfer(owner(), __balanceOf(address(this)));
         }
     }
 
@@ -141,11 +141,11 @@ contract DvStakeToken is DvOrderBook {
 
         // check if enough escrow allowed and pull
         __allowance(_msgSender(), amount);
-        _token.transferFrom(_msgSender(), address(this), amount);
+        __transferFrom(_msgSender(), address(this), amount);
 
         // pay tangible tax
         uint256 tangible = ((getRoyalty() * amount) / 1000);
-        _token.transfer(owner(), tangible);
+        __transfer(owner(), tangible);
 
         emit Payment(_msgSender(), amount);
     }
@@ -154,7 +154,7 @@ contract DvStakeToken is DvOrderBook {
     // Mark the current available value as disbursed
     // so shareholders can withdraw
     function disburse() public atState(States.Trading) nonReentrant {
-        uint256 balance = _token.balanceOf(address(this));
+        uint256 balance = __balanceOf(address(this));
 
         // check if there is balance to disburse
         if (balance > escrow){
@@ -202,7 +202,7 @@ contract DvStakeToken is DvOrderBook {
 
         // calculate and transfer claiming amount
         uint256 amount = (shares[_msgSender()] * disburseLevels[shareholdersLevel[_msgSender()]] / _totalSupply);
-        _token.transfer(_msgSender(), amount);
+        __transfer(_msgSender(), amount);
 
         // remove reserved amount
         totalDisbursed -= amount;

@@ -22,7 +22,7 @@ contract DvStakeTokenFactory is DvFactory {
     /**
     * @dev Throws if called by any account other than the owner.
     */
-    function issue(address _tokenAddress, string memory name, string memory symbol) public payable isActive
+    function issue(address _tokenAddress, string memory name, string memory symbol) public payable isActive returns (address)
     {
         // take fee
         require(msg.value >= _issueFee, "Please provide enough fee");
@@ -33,6 +33,8 @@ contract DvStakeTokenFactory is DvFactory {
         DvStakeToken token = new DvStakeToken(_tokenAddress, name, symbol, address(this), _msgSender());
 
         emit deployed(_msgSender(), address(token));
+        return address(token);
+
     }
 
 }

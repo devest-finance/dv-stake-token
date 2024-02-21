@@ -14,7 +14,7 @@
     "url": "git+https://github.com/devest-finance/dv-stake-pool.git"
   },
   "dependencies": {
-    "@devest/contracts": "1.0.3",
+    "@devest/contracts": "1.1.0",
     "@openzeppelin/contracts": "4.9.3",
     "@openzeppelin/test-helpers": "0.5.16",
     "@truffle/hdwallet-provider": "2.1.13",
