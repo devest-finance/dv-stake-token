@@ -74,11 +74,11 @@ contract DvStakeToken is DvOrderBook {
         require(decimal >= 0 && decimal <= 10, 'Max 16 decimals');
 
         // set attributes
-        _decimals = decimal += 2;
+        _decimals = decimal;
         _setRoyalties(tax, owner());
 
         // assign to publisher all shares
-        _totalSupply = (10 ** _decimals);
+        _totalSupply = (10 ** (_decimals + 2));
         shares[_msgSender()] = _totalSupply;
 
         // Initialize owner as only shareholder
